@@ -76,9 +76,9 @@ func main() {
 		}
 	}
 
-	secLinks := crawlOne(args[0])
-	for _, v := range secLinks {
-		crawlOne(v)
+	insideLinks := crawlURL(args[0])
+	for _, v := range insideLinks {
+		crawlURL(v)
 	}
 
 }
@@ -92,7 +92,7 @@ func findCDNVendor(domain string) string {
 	return ""
 }
 
-func crawlOne(urlStr string) []string {
+func crawlURL(urlStr string) []string {
 	fmt.Println("Inspecting " + urlStr)
 	fmt.Println("==========================================================================")
 
