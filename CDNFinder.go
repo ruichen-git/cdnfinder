@@ -3,18 +3,21 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
 
-	"github.com/jackdanger/collectlinks"
+	"golang.org/x/net/html"
 )
 
 type cdnVendor struct {
 	Symbol, Vendor string
 }
+
+var maxURL = 100 //Max number of Url to check per page
 
 var cdnVendors = []cdnVendor{
 	{"cloudfront", "AWS CloudFront"},
@@ -106,14 +109,6 @@ func crawlURL(urlStr string) []string {
 	var resp *http.Response
 	resp, err = http.Get(urlStr)
 
-	/*
-		if strings.HasSuffix(urlStr, "htm") || strings.HasSuffix(urlStr, "html") || strings.HasSuffix(urlStr, "/") {
-			resp, err = http.Get(urlStr)
-		} else {
-			return nil
-		}
-	*/
-
 	if err != nil {
 		return nil
 	}
@@ -121,34 +116,115 @@ func crawlURL(urlStr string) []string {
 
 	domainMap := make(map[string]string)
 
-	innerLinks := collectlinks.All(resp.Body)
+	trLinks := getLinks(resp.Body)
+	//fmt.Println(trLinks)
 
-	links := append(innerLinks, urlStr)
-
-	nextLinks := make([]string, len(innerLinks)+1)
-	i := 0
+	links := append(trLinks, urlStr)
 
 	for _, link := range links {
 
-		if (strings.HasPrefix(link, "/") == false) || (strings.HasPrefix(link, "//") == true) {
-			urlStr2, err := url.Parse(link)
+		if strings.HasPrefix(link, "//") == true {
+			link = link[2:]
+		}
+		urlStr2, err := url.Parse(link)
 
-			nextLinks[i] = urlStr2.String()
-			i++
+		if err == nil {
+			if _, ok := domainMap[urlStr2.Host]; !ok {
+				cname, _ := net.LookupCNAME(urlStr2.Host)
+				domainMap[urlStr2.Host] = cname
+				cdn := findCDNVendor(cname)
+				if cdn != "" || dMode == true {
+					fmt.Printf("%s\t%s\tusing %s\n", urlStr2.Host, cname, cdn)
+				}
+			}
+		}
 
-			if err == nil {
-				if _, ok := domainMap[urlStr2.Host]; !ok {
-					cname, _ := net.LookupCNAME(urlStr2.Host)
-					domainMap[urlStr2.Host] = cname
-					cdn := findCDNVendor(cname)
-					if cdn != "" || dMode == true {
-						fmt.Printf("%s\t%s\tusing %s\n", urlStr2.Host, cname, cdn)
+	}
+	fmt.Println("")
+
+	//Filter out unnecessary urls for next round
+	nrLinks := make([]string, len(trLinks))
+	nrI := 0
+	for _, v := range trLinks {
+		if strings.HasSuffix(v, "htm") || strings.HasSuffix(v, "html") || strings.HasSuffix(v, "/") {
+			nrLinks[nrI] = v
+			nrI++
+			continue
+		}
+
+		if (strings.LastIndex(v, ".") != len(v)-3) && (strings.LastIndex(v, ".") != len(v)-4) && (strings.LastIndex(v, ".") != len(v)-5) {
+			nrLinks[nrI] = v
+			nrI++
+			continue
+		}
+
+	}
+
+	return nrLinks[:nrI]
+}
+
+func getLinks(htmlBody io.ReadCloser) []string {
+	thisRound := make([]string, maxURL)
+
+	thisLen := 0
+
+	z := html.NewTokenizer(htmlBody)
+
+	for {
+		tt := z.Next()
+
+		switch {
+		case tt == html.ErrorToken:
+
+			return thisRound[:thisLen]
+
+		case tt == html.StartTagToken:
+			t := z.Token()
+			urls := getAttrUrls(t.Attr)
+			if urls != nil {
+				for _, v := range urls {
+
+					thisRound[thisLen] = v
+					thisLen++
+
+					if thisLen == maxURL-1 {
+						return thisRound
 					}
 				}
 			}
 		}
 	}
-	fmt.Println("")
 
-	return nextLinks[:i]
+}
+
+func getAttrUrls(Attr []html.Attribute) []string {
+
+	if Attr != nil {
+		urls := make([]string, len(Attr))
+
+		i := 0
+
+		for _, v := range Attr {
+			url := strings.Trim(v.Val, " ")
+
+			if strings.Index(url, "http") == 0 {
+
+				urls[i] = url
+				i++
+				continue
+			}
+
+			if strings.Index(url, "//") == 0 {
+
+				urls[i] = url
+				i++
+				continue
+			}
+
+		}
+
+		return urls[:i]
+	}
+
+	return nil
 }
