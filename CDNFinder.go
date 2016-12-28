@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 
 	"golang.org/x/net/html"
 )
@@ -62,6 +63,8 @@ var cdnVendors = []cdnVendor{
 }
 
 var dMode = false
+var wg sync.WaitGroup
+var fmtMux sync.Mutex
 
 func main() {
 	flag.Parse()
@@ -78,12 +81,15 @@ func main() {
 			dMode = true
 		}
 	}
-
+	wg.Add(1)
 	insideLinks := crawlURL(args[0])
-	for _, v := range insideLinks {
-		crawlURL(v)
-	}
+	wg.Wait()
 
+	wg.Add(len(insideLinks))
+	for _, v := range insideLinks {
+		go crawlURL(v)
+	}
+	wg.Wait()
 }
 
 func findCDNVendor(domain string) string {
@@ -96,8 +102,7 @@ func findCDNVendor(domain string) string {
 }
 
 func crawlURL(urlStr string) []string {
-	fmt.Println("Inspecting " + urlStr)
-	fmt.Println("==========================================================================")
+	defer wg.Done()
 
 	urlStr = strings.ToLower(urlStr)
 
@@ -115,6 +120,7 @@ func crawlURL(urlStr string) []string {
 	defer resp.Body.Close()
 
 	domainMap := make(map[string]string)
+	cdnMap := make(map[string]string)
 
 	trLinks := getLinks(resp.Body)
 	//fmt.Println(trLinks)
@@ -133,14 +139,27 @@ func crawlURL(urlStr string) []string {
 				cname, _ := net.LookupCNAME(urlStr2.Host)
 				domainMap[urlStr2.Host] = cname
 				cdn := findCDNVendor(cname)
-				if cdn != "" || dMode == true {
-					fmt.Printf("%s\t%s\tusing %s\n", urlStr2.Host, cname, cdn)
-				}
+				cdnMap[urlStr2.Host] = cdn
+				/*
+					if cdn != "" || dMode == true {
+						fmt.Printf("%s\t%s\tusing %s\n", urlStr2.Host, cname, cdn)
+					}
+				*/
 			}
 		}
 
 	}
+
+	fmtMux.Lock()
+	fmt.Println("Inspecting " + urlStr)
+	fmt.Println("==========================================================================================================")
+	for i, v := range domainMap {
+		if cdnMap[i] != "" || dMode == true {
+			fmt.Printf("%s\t\t%s\t\t%s\n", i, v, cdnMap[i])
+		}
+	}
 	fmt.Println("")
+	fmtMux.Unlock()
 
 	//Filter out unnecessary urls for next round
 	nrLinks := make([]string, len(trLinks))
