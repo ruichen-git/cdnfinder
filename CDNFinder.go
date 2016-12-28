@@ -22,12 +22,9 @@ var maxURL = 100 //Max number of Url to check per page
 
 var cdnVendors = []cdnVendor{
 	{"cloudfront", "AWS CloudFront"},
-	{"kunlun", "Alibaba Cloud"},
-	{"ccgslb", "ChinaCache"},
-	{"lxdns", "ChinaCache"},
-	{"chinacache", "ChinaCache"},
-	{"edgekey", "Akamai"},
-	{"akamai", "Akamai"},
+	{"kunlun", "Alibaba Cloud"}, {"tbcache", "Alibaba Cloud"}, {"alicdn", "Alibaba Cloud"},
+	{"ccgslb", "ChinaCache"}, {"lxdns", "ChinaCache"}, {"chinacache", "ChinaCache"},
+	{"edgekey", "Akamai"}, {"akamai", "Akamai"},
 	{"fastly", "Fastly"},
 	{"edgecast", "EdgeCast"},
 	{"azioncdn", "Azion"},
@@ -35,24 +32,19 @@ var cdnVendors = []cdnVendor{
 	{"cdn77", "CDN77"},
 	{"cdnetworks", "CDNetworks"},
 	{"cdnify", "CDNify"},
-	{"wscloudcdn", "ChinaNetCenter"},
+	{"wscloudcdn", "ChinaNetCenter"}, {"speedcdns", "ChinaNetCenter/Quantil"}, {"mwcloudcdn", "ChinaNetCenter/Quantil"},
 	{"cloudflare", "CloudFlare"},
 	{"hwcdn", "HighWinds"},
-	{"kxcdn", "KeyCDN"},
-	{"awsdns", "KeyCDN"},
-	{"fpbns", "Level3"},
-	{"footprint", "Level3"},
+	{"kxcdn", "KeyCDN"}, {"awsdns", "KeyCDN"},
+	{"fpbns", "Level3"}, {"footprint", "Level3"},
 	{"llnwd", "LimeLight"},
 	{"netdna", "MaxCDN"},
-	{"speedcdns", "ChinaNetCenter/Quantil"},
-	{"mwcloudcdn", "ChinaNetCenter/Quantil"},
 	{"bitgravity", "Tata CDN"},
 	{"azureedge", "Azure CDN"},
 	{"anankecdn", "Anake CDN"},
 	{"presscdn", "Press CDN"},
 	{"telefonica", "Telefonica CDN"},
-	{"dnsv1", "Tecent CDN"},
-	{"cdntip", "Tecent CDN"},
+	{"dnsv1", "Tecent CDN"}, {"cdntip", "Tecent CDN"},
 	{"skyparkcdn", "Sky Park CDN"},
 	{"ngenix", "Ngenix"},
 	{"lswcdn", "LeaseWeb"},
@@ -123,7 +115,6 @@ func crawlURL(urlStr string) []string {
 	cdnMap := make(map[string]string)
 
 	trLinks := getLinks(resp.Body)
-	//fmt.Println(trLinks)
 
 	links := append(trLinks, urlStr)
 
@@ -140,11 +131,6 @@ func crawlURL(urlStr string) []string {
 				domainMap[urlStr2.Host] = cname
 				cdn := findCDNVendor(cname)
 				cdnMap[urlStr2.Host] = cdn
-				/*
-					if cdn != "" || dMode == true {
-						fmt.Printf("%s\t%s\tusing %s\n", urlStr2.Host, cname, cdn)
-					}
-				*/
 			}
 		}
 
