@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"io"
@@ -59,29 +60,60 @@ var wg sync.WaitGroup
 var fmtMux sync.Mutex
 
 func main() {
-	flag.Parse()
-	args := flag.Args()
+	var searchUrls []string
 
-	if len(args) < 1 {
-		fmt.Println("Please specify start url")
+	urlPtr := flag.String("url", "", "Start Url")
+	filePtr := flag.String("file", "", "Url File")
+	debugPtr := flag.Bool("debug", false, "Debug Mode")
+
+	flag.Parse()
+
+	if *urlPtr == "" && *filePtr == "" {
+		fmt.Println("Please specify either start url or url file")
 		os.Exit(1)
 	}
 
-	if len(args) > 1 {
+	if *urlPtr != "" && *filePtr != "" {
+		fmt.Println("Please specify either start url or url file")
+		os.Exit(2)
+	}
 
-		if args[1] == "-d" {
-			dMode = true
+	dMode = *debugPtr
+
+	if *urlPtr != "" {
+		searchUrls = append(searchUrls, *urlPtr)
+	} else {
+		fileReader, err := os.Open(*filePtr)
+
+		if err != nil {
+			fmt.Println("Fail to open file " + *filePtr)
+			os.Exit(3)
 		}
-	}
-	wg.Add(1)
-	insideLinks := crawlURL(args[0])
-	wg.Wait()
 
-	wg.Add(len(insideLinks))
-	for _, v := range insideLinks {
-		go crawlURL(v)
+		lineReader := bufio.NewReader(fileReader)
+		aLine, _, rErr := lineReader.ReadLine()
+
+		for rErr == nil {
+			searchUrls = append(searchUrls, string(aLine))
+			aLine, _, rErr = lineReader.ReadLine()
+		}
+
+		fileReader.Close()
 	}
-	wg.Wait()
+
+	for _, startUrl := range searchUrls {
+
+		wg.Add(1)
+		insideLinks := crawlURL(startUrl)
+		wg.Wait()
+
+		wg.Add(len(insideLinks))
+		for _, v := range insideLinks {
+			go crawlURL(v)
+		}
+		wg.Wait()
+	}
+
 }
 
 func findCDNVendor(domain string) string {
